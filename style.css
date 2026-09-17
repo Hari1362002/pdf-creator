@@ -280,7 +280,6 @@ input[type=range] { width: 130px; accent-color: var(--ink); }
   user-select: none;
 }
 .hint strong {
-  font-family: "Noto Sans Tamil", var(--ui);
   font-size: 40px;
   font-weight: 700;
   color: #b3b9c3;

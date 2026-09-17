@@ -28,7 +28,7 @@
 
   // Ready-made Tamil words, so a phone without a Tamil keyboard only has to type the date.
   const DAYS_TA = ['ஞாயிற்றுக்கிழமை', 'திங்கட்கிழமை', 'செவ்வாய்க்கிழமை', 'புதன்கிழமை', 'வியாழக்கிழமை', 'வெள்ளிக்கிழமை', 'சனிக்கிழமை'];
-  const WORDS = ['விடுமுறை', ...[1, 2, 3, 4, 5, 6, 0].map((d) => `(${DAYS_TA[d]})`), '&', 'முதல்', 'வரை', 'நன்றி'];
+  const WORDS = ['விடுமுறை', ...[1, 2, 3, 4, 5, 6, 0].map((d) => `(${DAYS_TA[d]})`), '&'];
 
   const SAMPLE = {
     orientation: 'portrait',
