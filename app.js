@@ -33,8 +33,8 @@
   const SAMPLE = {
     orientation: 'portrait',
     boxes: [
-      { x: 397, y: 225, size: 68, text: '16.09.2026\n(புதன்கிழமை)\n&\n17.09.2026\n(வியாழக்கிழமை)' },
-      { x: 397, y: 770, size: 84, text: 'விடுமுறை' },
+      { x: 397, y: 263, size: 62, text: '16.09.2026\n(புதன்கிழமை)\n&\n17.09.2026\n(வியாழக்கிழமை)', role: 'dates' },
+      { x: 397, y: 765, size: 76, text: 'விடுமுறை', role: 'title' },
     ],
   };
 
@@ -47,7 +47,7 @@
     centerX: $('#center-x'), del: $('#delete'), orient: $('#orient'),
     sample: $('#btn-sample'), hintSample: $('#hint-sample'), clear: $('#btn-clear'),
     share: $('#btn-share'), png: $('#btn-png'), pdf: $('#btn-pdf'),
-    words: $('#words'), dateChip: $('#date-chip'), datePick: $('#date-pick'),
+    words: $('#words'), dateChip: $('#date-chip'), hintDate: $('#hint-date'), datePick: $('#date-pick'),
   };
 
   const state = {
@@ -360,15 +360,46 @@
     el.words.appendChild(chip);
   });
 
-  el.dateChip.addEventListener('click', () => {
+  // ---------- leave notice from a date ----------
+  // Picking a date builds the same layout as the sample notice: the dates block
+  // (62px) and the விடுமுறை title (76px), centred as a pair. Each further date
+  // is appended with an "&". Text edits are kept; only positions are redone.
+  const NOTICE_STYLE = { font: 'Noto Sans Tamil', weight: 700, align: 'center', color: '#111111' };
+  const noticeBox = (role) => state.boxes.find((b) => b.role === role);
+
+  function addNoticeDate(y, m, d) {
+    const date = `${String(d).padStart(2, '0')}.${String(m).padStart(2, '0')}.${y}`;
+    const entry = `${date}\n(${DAYS_TA[new Date(y, m - 1, d).getDay()]})`;
+    const { w, h } = pageSize();
+    const cx = Math.round(w / 2);
+    let dates = noticeBox('dates');
+    const isNew = !dates;
+    if (dates) dates.text = dates.text.trim() ? `${dates.text.replace(/\s+$/, '')}\n&\n${entry}` : entry;
+    else dates = addBox(cx, 0, { ...NOTICE_STYLE, size: 62, text: entry, role: 'dates' });
+    const title = noticeBox('title') || addBox(cx, 0, { ...NOTICE_STYLE, size: 76, text: 'விடுமுறை', role: 'title' });
+
+    const gap = 115;
+    const h1 = lines(dates.text).length * dates.size * LINE_HEIGHT;
+    const h2 = lines(title.text).length * title.size * LINE_HEIGHT;
+    const top = Math.max(40, Math.round((h - (h1 + gap + h2)) / 2));
+    Object.assign(dates, { x: cx, y: top });
+    Object.assign(title, { x: cx, y: top + h1 + gap });
+    layoutBox(dates);
+    layoutBox(title);
+    select(dates.id);
+    save();
+    toast(isNew ? 'Notice ready — add another date, or tap the text to edit' : 'Date added');
+  }
+
+  function openDatePicker() {
     try { el.datePick.showPicker(); } catch { el.datePick.focus(); el.datePick.click(); }
-  });
+  }
+  el.dateChip.addEventListener('click', openDatePicker);
+  el.hintDate.addEventListener('click', openDatePicker);
   el.datePick.addEventListener('change', () => {
     const [y, m, d] = el.datePick.value.split('-').map(Number);
-    if (!y) return;
-    const day = DAYS_TA[new Date(y, m - 1, d).getDay()];
-    insertText(`${String(d).padStart(2, '0')}.${String(m).padStart(2, '0')}.${y}\n(${day})`);
     el.datePick.value = '';
+    if (y) addNoticeDate(y, m, d);
   });
 
   // Toolbar buttons must not steal focus from the textarea being edited.
@@ -562,5 +593,5 @@
   document.fonts.addEventListener('loadingdone', () => state.boxes.forEach(layoutBox));
   document.fonts.ready.then(() => state.boxes.forEach(layoutBox));
 
-  window.PDFCreator = { state, renderCanvas, buildPdf, toBlob, exportPdf, exportPng, loadSample, insertText };
+  window.PDFCreator = { state, renderCanvas, buildPdf, toBlob, exportPdf, exportPng, loadSample, insertText, addNoticeDate };
 })();
