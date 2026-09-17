@@ -26,6 +26,10 @@
   ];
   const COLORS = ['#111111', '#d11a2a', '#1d4ed8', '#15803d', '#ea580c', '#7e22ce'];
 
+  // Ready-made Tamil words, so a phone without a Tamil keyboard only has to type the date.
+  const DAYS_TA = ['ஞாயிற்றுக்கிழமை', 'திங்கட்கிழமை', 'செவ்வாய்க்கிழமை', 'புதன்கிழமை', 'வியாழக்கிழமை', 'வெள்ளிக்கிழமை', 'சனிக்கிழமை'];
+  const WORDS = ['விடுமுறை', ...[1, 2, 3, 4, 5, 6, 0].map((d) => `(${DAYS_TA[d]})`), '&', 'முதல்', 'வரை', 'நன்றி'];
+
   const SAMPLE = {
     orientation: 'portrait',
     boxes: [
@@ -43,6 +47,7 @@
     centerX: $('#center-x'), del: $('#delete'), orient: $('#orient'),
     sample: $('#btn-sample'), hintSample: $('#hint-sample'), clear: $('#btn-clear'),
     share: $('#btn-share'), png: $('#btn-png'), pdf: $('#btn-pdf'),
+    words: $('#words'), dateChip: $('#date-chip'), datePick: $('#date-pick'),
   };
 
   const state = {
@@ -151,6 +156,7 @@
     ta.value = b.text;
     ta.addEventListener('input', () => { b.text = ta.value; layoutBox(b); save(); });
     ta.addEventListener('focus', () => select(b.id));
+    ta.addEventListener('blur', () => { b.caret = ta.selectionEnd; });
     ta.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') { ta.blur(); deselect(); }
     });
@@ -321,8 +327,52 @@
     setDocument({ orientation: state.orientation, boxes: [] });
   }
 
+  // Insert a word at the caret of the selected box, or start a new centred box with it.
+  function insertText(str) {
+    let b = selected();
+    if (!b) {
+      const { w, h } = pageSize();
+      const lh = state.style.size * LINE_HEIGHT;
+      const lowest = state.boxes.reduce((m, x) => Math.max(m, x.y + lines(x.text).length * x.size * LINE_HEIGHT), 0);
+      const y = state.boxes.length ? Math.min(lowest + 40, h - lh) : h / 2 - lh / 2;
+      b = addBox(Math.round(w / 2), Math.round(y), { align: 'center' });
+      select(b.id);
+    }
+    const ta = nodes.get(b.id).querySelector('textarea');
+    const pos = document.activeElement === ta ? ta.selectionEnd : Math.min(b.caret ?? ta.value.length, ta.value.length);
+    const before = ta.value.slice(0, pos);
+    const text = (before && !/[\s(]$/.test(before) ? ' ' : '') + str;
+    ta.value = before + text + ta.value.slice(pos);
+    b.text = ta.value;
+    b.caret = pos + text.length;
+    ta.focus();
+    ta.setSelectionRange(b.caret, b.caret);
+    layoutBox(b);
+    save();
+  }
+
+  WORDS.forEach((word) => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip';
+    chip.textContent = word;
+    chip.addEventListener('click', () => insertText(word));
+    el.words.appendChild(chip);
+  });
+
+  el.dateChip.addEventListener('click', () => {
+    try { el.datePick.showPicker(); } catch { el.datePick.focus(); el.datePick.click(); }
+  });
+  el.datePick.addEventListener('change', () => {
+    const [y, m, d] = el.datePick.value.split('-').map(Number);
+    if (!y) return;
+    const day = DAYS_TA[new Date(y, m - 1, d).getDay()];
+    insertText(`${String(d).padStart(2, '0')}.${String(m).padStart(2, '0')}.${y}\n(${day})`);
+    el.datePick.value = '';
+  });
+
   // Toolbar buttons must not steal focus from the textarea being edited.
-  document.querySelectorAll('.toolbar button, .topbar button').forEach((btn) => {
+  document.querySelectorAll('.toolbar button, .topbar button, .words button').forEach((btn) => {
     btn.addEventListener('pointerdown', (e) => e.preventDefault());
   });
 
@@ -512,5 +562,5 @@
   document.fonts.addEventListener('loadingdone', () => state.boxes.forEach(layoutBox));
   document.fonts.ready.then(() => state.boxes.forEach(layoutBox));
 
-  window.PDFCreator = { state, renderCanvas, buildPdf, toBlob, exportPdf, exportPng, loadSample };
+  window.PDFCreator = { state, renderCanvas, buildPdf, toBlob, exportPdf, exportPng, loadSample, insertText };
 })();
