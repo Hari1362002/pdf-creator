@@ -47,7 +47,7 @@
     centerX: $('#center-x'), del: $('#delete'), orient: $('#orient'),
     sample: $('#btn-sample'), hintSample: $('#hint-sample'), clear: $('#btn-clear'),
     share: $('#btn-share'), png: $('#btn-png'), pdf: $('#btn-pdf'),
-    words: $('#words'), dateChip: $('#date-chip'), hintDate: $('#hint-date'), datePick: $('#date-pick'),
+    words: $('#words'), dateInputs: document.querySelectorAll('.date-input'),
   };
 
   const state = {
@@ -245,7 +245,7 @@
 
   // Click on empty paper → new text box right there.
   el.page.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0 || e.target.closest('.box, button')) return;
+    if (e.button !== 0 || e.target.closest('.box, button, .date-trigger')) return;
     const sx = e.clientX, sy = e.clientY;
     window.addEventListener('pointerup', (ev) => {
       if (Math.hypot(ev.clientX - sx, ev.clientY - sy) > 6) return;
@@ -391,15 +391,18 @@
     toast(isNew ? 'Notice ready — add another date, or tap the text to edit' : 'Date added');
   }
 
-  function openDatePicker() {
-    try { el.datePick.showPicker(); } catch { el.datePick.focus(); el.datePick.click(); }
-  }
-  el.dateChip.addEventListener('click', openDatePicker);
-  el.hintDate.addEventListener('click', openDatePicker);
-  el.datePick.addEventListener('change', () => {
-    const [y, m, d] = el.datePick.value.split('-').map(Number);
-    el.datePick.value = '';
-    if (y) addNoticeDate(y, m, d);
+  // Phones open the native picker on the tap itself; with a mouse, Chrome only
+  // opens it from the tiny calendar icon, so nudge it open there.
+  const finePointer = window.matchMedia('(pointer: fine)').matches;
+  el.dateInputs.forEach((input) => {
+    input.addEventListener('click', () => {
+      if (finePointer) { try { input.showPicker(); } catch { /* picker already open or unsupported */ } }
+    });
+    input.addEventListener('change', () => {
+      const [y, m, d] = input.value.split('-').map(Number);
+      input.value = '';
+      if (y) addNoticeDate(y, m, d);
+    });
   });
 
   // Toolbar buttons must not steal focus from the textarea being edited.

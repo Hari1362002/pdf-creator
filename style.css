@@ -245,7 +245,24 @@ input[type=range] { width: 130px; accent-color: var(--ink); }
 .chip-date { background: var(--ink); color: #fff; font-family: var(--ui); font-size: 14px; }
 .chip-date:hover { background: #000; }
 .chip-date svg { width: 17px; height: 17px; }
-.date-pick { position: absolute; left: 20px; bottom: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; border: 0; padding: 0; }
+/* The real date input sits invisibly on top of its button, so a tap on a phone
+   opens the native picker directly — no scripting involved. */
+.date-trigger { position: relative; cursor: pointer; }
+.date-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  font-size: 16px;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.date-input::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 
 /* ---------- workspace ---------- */
 .workspace {
@@ -287,7 +304,7 @@ input[type=range] { width: 130px; accent-color: var(--ink); }
 }
 .hint span { font-size: 20px; font-weight: 500; color: #9aa1ad; }
 .hint-actions { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; justify-content: center; }
-.hint button {
+.hint button, .hint .hint-primary {
   pointer-events: auto;
   height: 52px;
   padding: 0 24px;
@@ -302,7 +319,7 @@ input[type=range] { width: 130px; accent-color: var(--ink); }
   gap: 8px;
 }
 .hint button:hover { border-color: var(--ink); }
-.hint .hint-primary { background: var(--ink); border-color: var(--ink); border-style: solid; color: #fff; }
+.hint .hint-primary { background: var(--ink); border-color: var(--ink); border-style: solid; color: #fff; user-select: none; }
 .hint .hint-primary:hover { background: #000; }
 .hint .hint-primary svg { width: 22px; height: 22px; }
 .hint[hidden] { display: none; }
