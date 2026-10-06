@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+Tamil:wght@400;700;900&family=Catamaran:wght@400;700;900&family=Mukta+Malar:wght@400;700;800&family=Hind+Madurai:wght@400;700&family=Baloo+Thambi+2:wght@400;700;800&family=Anek+Tamil:wght@400;700;800&family=Arima:wght@400;700&family=Noto+Serif+Tamil:wght@400;700;900&family=Tiro+Tamil&family=Pavanam&family=Kavivanar&family=Coiny&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=5">
+  <link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
 
@@ -26,15 +26,19 @@
   <div class="topbar-actions">
     <button type="button" class="btn" id="btn-share" hidden>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/></svg>
-      Share
+      <span class="btn-text">Share</span>
+    </button>
+    <button type="button" class="btn" id="btn-keyboard" aria-pressed="false" title="Tamil keyboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 13h.01M18 13h.01M9 13h6M8 16h8"/></svg>
+      <span class="btn-text">Keyboard</span>
     </button>
     <button type="button" class="btn" id="btn-png">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg>
-      Image
+      <span class="btn-text">Image</span>
     </button>
     <button type="button" class="btn primary" id="btn-pdf">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 19h16"/></svg>
-      Download PDF
+      <span class="btn-text">Download</span><span class="btn-text-wide"> PDF</span>
     </button>
   </div>
 </header>
@@ -130,9 +134,28 @@
   </div>
 </main>
 
+<div class="keyboard" id="keyboard" hidden>
+  <div class="kb-bar">
+    <div class="segmented kb-tabs" id="kb-tabs" role="group" aria-label="Keyboard layout">
+      <button type="button" data-layout="tamil" class="is-on">தமிழ்</button>
+      <button type="button" data-layout="abc">ABC</button>
+      <button type="button" data-layout="num">123</button>
+    </div>
+    <span class="kb-hint" id="kb-hint">Tap the page, then tap letters</span>
+    <button type="button" class="kb-close" id="kb-close" aria-label="Hide keyboard">Hide ▾</button>
+  </div>
+  <div class="kb-keys" id="kb-keys"></div>
+  <div class="kb-row kb-bottom">
+    <button type="button" class="key key-wide" data-act="shift" id="kb-shift" hidden>⇧</button>
+    <button type="button" class="key key-space" data-key=" ">space</button>
+    <button type="button" class="key key-wide" data-act="back" aria-label="Backspace">⌫</button>
+    <button type="button" class="key key-wide" data-act="enter" aria-label="New line">↵</button>
+  </div>
+</div>
+
 <div class="measure" id="measure" aria-hidden="true"></div>
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="app.js?v=5"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>

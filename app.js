@@ -30,6 +30,24 @@
   const DAYS_TA = ['ஞாயிற்றுக்கிழமை', 'திங்கட்கிழமை', 'செவ்வாய்க்கிழமை', 'புதன்கிழமை', 'வியாழக்கிழமை', 'வெள்ளிக்கிழமை', 'சனிக்கிழமை'];
   const WORDS = ['விடுமுறை', ...[1, 2, 3, 4, 5, 6, 0].map((d) => `(${DAYS_TA[d]})`), '&'];
 
+  // On-screen keyboards, so a phone with no Tamil layout installed can still type.
+  // Tamil is a grouped grid rather than fixed rows: its glyphs are up to 2.7em wide,
+  // so a 10-12 key row would shrink them past legibility on a phone.
+  const KB_TAMIL = [
+    ['Consonants', ['க', 'ங', 'ச', 'ஞ', 'ட', 'ண', 'த', 'ந', 'ப', 'ம', 'ய', 'ர', 'ல', 'வ', 'ழ', 'ள', 'ற', 'ன']],
+    ['Signs — tap after a letter', ['ா', 'ி', 'ீ', 'ு', 'ூ', 'ெ', 'ே', 'ை', 'ொ', 'ோ', 'ௌ', '்']],
+    ['Vowels', ['அ', 'ஆ', 'இ', 'ஈ', 'உ', 'ஊ', 'எ', 'ஏ', 'ஐ', 'ஒ', 'ஓ', 'ஔ', 'ஃ']],
+    ['Grantha', ['ஜ', 'ஷ', 'ஸ', 'ஹ', 'க்ஷ', 'ஸ்ரீ']],
+  ];
+  const KB_ROWS = {
+    abc: [[...'qwertyuiop'], [...'asdfghjkl'], [...'zxcvbnm']],
+    num: [
+      [...'1234567890'],
+      ['.', ',', '-', '/', ':', '(', ')', '&', '@', '!'],
+      ['₹', '%', '+', '=', '"', "'", '?', '*', '#', '•'],
+    ],
+  };
+
   const SAMPLE = {
     orientation: 'portrait',
     boxes: [
@@ -48,6 +66,8 @@
     sample: $('#btn-sample'), hintSample: $('#hint-sample'), clear: $('#btn-clear'),
     share: $('#btn-share'), png: $('#btn-png'), pdf: $('#btn-pdf'),
     words: $('#words'), dateInputs: document.querySelectorAll('.date-input'),
+    keyboard: $('#keyboard'), kbKeys: $('#kb-keys'), kbTabs: $('#kb-tabs'), kbShift: $('#kb-shift'),
+    kbClose: $('#kb-close'), kbHint: $('#kb-hint'), kbToggle: $('#btn-keyboard'),
   };
 
   const state = {
@@ -57,6 +77,9 @@
     scale: 1,
     // Style of the selected box, and the style the next new box inherits.
     style: { font: 'Noto Sans Tamil', size: 48, weight: 700, align: 'center', color: '#111111' },
+    kbOpen: false,
+    kbLayout: 'tamil',
+    kbShift: false,
   };
   const nodes = new Map(); // box id -> .box element
   let uid = 1;
@@ -99,12 +122,17 @@
   }
 
   // ---------- page scale ----------
+  // The whole page always fits on screen, so every spot on it can be tapped
+  // without scrolling — on a phone that is the difference between usable and not.
   function layout() {
     const { w, h } = pageSize();
-    const availW = el.workspace.clientWidth - 24;
-    const availH = el.workspace.clientHeight - 40;
-    const fitWidthOnly = window.innerWidth < 720;      // phones: fit width, scroll vertically
-    const s = clamp(fitWidthOnly ? availW / w : Math.min(availW / w, availH / h), 0.2, 1.25);
+    const pad = getComputedStyle(el.workspace);
+    const kb = state.kbOpen ? el.keyboard.offsetHeight : 0;
+    const availW = el.workspace.clientWidth - parseFloat(pad.paddingLeft) - parseFloat(pad.paddingRight);
+    // The keyboard does not shrink the page — it would end up unreadably small. Its
+    // room comes from the workspace's bottom padding, so the page scrolls behind it.
+    const availH = el.workspace.clientHeight - parseFloat(pad.paddingTop) - parseFloat(pad.paddingBottom) + kb;
+    const s = clamp(Math.min(availW / w, availH / h), 0.12, 1.25);
     state.scale = s;
     el.page.style.width = `${w}px`;
     el.page.style.height = `${h}px`;
@@ -154,6 +182,7 @@
       <textarea class="box-text" wrap="off" rows="1" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Text"></textarea>`;
     const ta = node.querySelector('textarea');
     ta.value = b.text;
+    ta.inputMode = state.kbOpen ? 'none' : 'text';
     ta.addEventListener('input', () => { b.text = ta.value; layoutBox(b); save(); });
     ta.addEventListener('focus', () => select(b.id));
     ta.addEventListener('blur', () => { b.caret = ta.selectionEnd; });
@@ -327,8 +356,10 @@
     setDocument({ orientation: state.orientation, boxes: [] });
   }
 
-  // Insert a word at the caret of the selected box, or start a new centred box with it.
-  function insertText(str) {
+  // ---------- typing from the UI (word chips and the on-screen keyboard) ----------
+  // The box being edited may have lost focus to the button that was just tapped,
+  // so the caret recorded on blur is used as the fallback insertion point.
+  function editTarget() {
     let b = selected();
     if (!b) {
       const { w, h } = pageSize();
@@ -338,18 +369,42 @@
       b = addBox(Math.round(w / 2), Math.round(y), { align: 'center' });
       select(b.id);
     }
+    return b;
+  }
+
+  function edit(transform) {
+    const b = editTarget();
     const ta = nodes.get(b.id).querySelector('textarea');
-    const pos = document.activeElement === ta ? ta.selectionEnd : Math.min(b.caret ?? ta.value.length, ta.value.length);
-    const before = ta.value.slice(0, pos);
-    const text = (before && !/[\s(]$/.test(before) ? ' ' : '') + str;
-    ta.value = before + text + ta.value.slice(pos);
-    b.text = ta.value;
-    b.caret = pos + text.length;
-    ta.focus();
-    ta.setSelectionRange(b.caret, b.caret);
+    const live = document.activeElement === ta;
+    const len = ta.value.length;
+    const start = Math.min(live ? ta.selectionStart : b.caret ?? len, len);
+    const end = Math.min(live ? ta.selectionEnd : start, len);
+    const r = transform(ta.value, start, end);
+    ta.value = r.value;
+    b.text = r.value;
+    b.caret = r.caret;
+    ta.focus({ preventScroll: true });
+    ta.setSelectionRange(r.caret, r.caret);
     layoutBox(b);
+    keepBoxVisible();
     save();
   }
+
+  // A whole word: separated from what came before it.
+  function insertText(str) {
+    edit((v, s, e) => {
+      const before = v.slice(0, s);
+      const text = (before && !/[\s(]$/.test(before) ? ' ' : '') + str;
+      return { value: before + text + v.slice(e), caret: s + text.length };
+    });
+  }
+
+  // A single keystroke: exactly what was tapped, nothing added.
+  const typeKey = (ch) => edit((v, s, e) => ({ value: v.slice(0, s) + ch + v.slice(e), caret: s + ch.length }));
+
+  const backspace = () => edit((v, s, e) => (s === e
+    ? { value: v.slice(0, Math.max(0, s - 1)) + v.slice(e), caret: Math.max(0, s - 1) }
+    : { value: v.slice(0, s) + v.slice(e), caret: s }));
 
   WORDS.forEach((word) => {
     const chip = document.createElement('button');
@@ -405,10 +460,115 @@
     });
   });
 
-  // Toolbar buttons must not steal focus from the textarea being edited.
-  document.querySelectorAll('.toolbar button, .topbar button, .words button').forEach((btn) => {
-    btn.addEventListener('pointerdown', (e) => e.preventDefault());
+  // ---------- on-screen keyboard ----------
+  function makeKey(ch) {
+    const key = document.createElement('button');
+    key.type = 'button';
+    key.className = 'key';
+    key.dataset.key = ch;
+    key.textContent = ch;
+    return key;
+  }
+
+  function renderKeys() {
+    el.kbKeys.innerHTML = '';
+    if (state.kbLayout === 'tamil') {
+      const grid = document.createElement('div');
+      grid.className = 'kb-grid';
+      KB_TAMIL.forEach(([label, chars]) => {
+        const head = document.createElement('div');
+        head.className = 'kb-label';
+        head.textContent = label;
+        grid.appendChild(head);
+        chars.forEach((ch) => grid.appendChild(makeKey(ch)));
+      });
+      el.kbKeys.appendChild(grid);
+    } else {
+      KB_ROWS[state.kbLayout].forEach((row) => {
+        const div = document.createElement('div');
+        div.className = 'kb-row';
+        row.forEach((ch) => div.appendChild(makeKey(state.kbLayout === 'abc' && state.kbShift ? ch.toUpperCase() : ch)));
+        el.kbKeys.appendChild(div);
+      });
+    }
+    fitKeyFont();
+    el.kbShift.hidden = state.kbLayout !== 'abc';
+    el.kbShift.setAttribute('aria-pressed', String(state.kbShift));
+    el.kbTabs.querySelectorAll('button').forEach((b) => b.classList.toggle('is-on', b.dataset.layout === state.kbLayout));
+  }
+
+  // Tamil glyphs vary hugely in width (ி is 0.9em, ௌ is 2.7em), so each key is set
+  // to the largest size at which its own glyph still fits — nothing is ever clipped.
+  function fitKeyFont() {
+    const keys = el.kbKeys.querySelectorAll('.key');
+    const m = el.measure;
+    m.style.font = '600 100px "Noto Sans Tamil", sans-serif';
+    keys.forEach((key) => {
+      const avail = key.getBoundingClientRect().width - 12;   // breathing room either side
+      if (avail <= 0) return;
+      m.textContent = key.textContent;
+      const glyph = m.getBoundingClientRect().width / 100;
+      key.style.fontSize = `${clamp(Math.floor(avail / glyph), 11, 21)}px`;
+    });
+  }
+
+  function setKeyboard(open) {
+    state.kbOpen = open;
+    el.keyboard.hidden = !open;
+    document.body.classList.toggle('kb-open', open);
+    el.kbToggle.setAttribute('aria-pressed', String(open));
+    el.kbToggle.classList.toggle('primary', open);
+    if (open) renderKeys();
+    // While the on-screen keyboard is up, keep the device keyboard away: on a phone
+    // it covers the page and drags the scaled layout around.
+    nodes.forEach((node) => { node.querySelector('textarea').inputMode = open ? 'none' : 'text'; });
+    document.documentElement.style.setProperty('--kb-h', `${open ? el.keyboard.offsetHeight : 0}px`);
+    layout();
+    if (open) keepBoxVisible();
+    state.boxes.forEach(layoutBox);
+  }
+
+  // scrollIntoView cannot know the keyboard covers the bottom of the viewport,
+  // so the scroll is worked out against the strip of page that is actually visible.
+  function keepBoxVisible() {
+    if (!state.kbOpen) return;
+    const b = selected();
+    const node = b && nodes.get(b.id);
+    if (!node) return;
+    const r = node.getBoundingClientRect();
+    const top = el.workspace.getBoundingClientRect().top + 8;
+    const bottom = window.innerHeight - el.keyboard.offsetHeight - 8;
+    if (r.bottom > bottom) el.workspace.scrollTop += r.bottom - bottom + 16;
+    else if (r.top < top) el.workspace.scrollTop -= top - r.top + 16;
+  }
+
+  el.kbToggle.addEventListener('click', () => setKeyboard(!state.kbOpen));
+  el.kbClose.addEventListener('click', () => setKeyboard(false));
+  el.kbTabs.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    state.kbLayout = btn.dataset.layout;
+    renderKeys();
   });
+  el.keyboard.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-key], button[data-act]');
+    if (!btn) return;
+    const { key, act } = btn.dataset;
+    if (key !== undefined) {
+      typeKey(key);
+      if (state.kbShift) { state.kbShift = false; renderKeys(); }
+    } else if (act === 'back') backspace();
+    else if (act === 'enter') typeKey('\n');
+    else if (act === 'shift') { state.kbShift = !state.kbShift; renderKeys(); }
+  });
+
+  // Toolbar and keyboard buttons must not steal focus from the textarea being edited.
+  // Only mouse presses are blocked: on touch the caret saved on blur is restored instead,
+  // and cancelling the touch sequence would swallow the tap.
+  document.querySelectorAll('.toolbar button, .topbar button, .words button').forEach((btn) => {
+    btn.addEventListener('mousedown', (e) => e.preventDefault());
+  });
+  el.keyboard.addEventListener('mousedown', (e) => e.preventDefault());
 
   FONTS.forEach(([family, label]) => {
     const opt = document.createElement('option');
@@ -591,10 +751,18 @@
 
   // ---------- boot ----------
   setDocument(load() || { orientation: 'portrait', boxes: [] });
-  window.addEventListener('resize', () => { layout(); });
+  window.addEventListener('resize', () => {
+    if (state.kbOpen) {
+      fitKeyFont();
+      document.documentElement.style.setProperty('--kb-h', `${el.keyboard.offsetHeight}px`);
+    }
+    layout();
+  });
+  // A phone with no Tamil layout installed is the common case, so start it open there.
+  if (window.matchMedia('(pointer: coarse)').matches) setKeyboard(true);
   // Web fonts arrive after first paint; re-measure every box once they land.
-  document.fonts.addEventListener('loadingdone', () => state.boxes.forEach(layoutBox));
+  document.fonts.addEventListener('loadingdone', () => { state.boxes.forEach(layoutBox); if (state.kbOpen) fitKeyFont(); });
   document.fonts.ready.then(() => state.boxes.forEach(layoutBox));
 
-  window.PDFCreator = { state, renderCanvas, buildPdf, toBlob, exportPdf, exportPng, loadSample, insertText, addNoticeDate };
+  window.PDFCreator = { state, renderCanvas, buildPdf, toBlob, exportPdf, exportPng, loadSample, insertText, typeKey, backspace, addNoticeDate, setKeyboard };
 })();
